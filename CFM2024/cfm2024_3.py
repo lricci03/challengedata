@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, Votin
 
 # =========== Check how test features differ from train features ========
 
-'''
+
 X_train = pd.read_csv('X_train_processed.csv', index_col='obs_id')
 
 X_test = pd.read_csv('X_test_processed.csv', index_col='obs_id')
@@ -35,11 +35,11 @@ comparison = pd.DataFrame({
 })
 
 print(comparison)
-'''
+
 # ====================== Are prediction consistent with train data? ==========
-'''
-X_train = pd.read_csv("X_train_processed.csv", index_col="obs_id")
-X_test = pd.read_csv('X_test_processed.csv', index_col='obs_id')
+
+#X_train = pd.read_csv("X_train_processed.csv", index_col="obs_id")
+#X_test = pd.read_csv('X_test_processed.csv', index_col='obs_id')
 
 
 y_train = pd.read_csv("y_train_or6m3Ta.csv", index_col='obs_id')['eqt_code_cat']
@@ -58,11 +58,11 @@ hgb_clf.fit(X_train,y_train)
 y_pred = hgb_clf.predict(X_test)
 print(y_train.value_counts(normalize=True))
 print(pd.Series(y_pred).value_counts(normalize=True))
-'''
+
 
 # ================ Are predictions on val consistent with predictions on test? =========
 
-
+'''
 X = pd.read_csv("X_train_processed.csv", index_col="obs_id")
 y = pd.read_csv("y_train_or6m3Ta.csv", index_col='obs_id')['eqt_code_cat']
 
@@ -81,3 +81,5 @@ hgb_clf.fit(X_train,y_train)
 
 print('valuation test pred', pd.Series(hgb_clf.predict(X_val)).value_counts(normalize=True))
 print('test set pred', pd.Series(hgb_clf.predict(X_test)).value_counts(normalize=True))
+
+'''

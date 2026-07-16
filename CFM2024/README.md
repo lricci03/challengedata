@@ -4,14 +4,16 @@
 * `cfm2024.py`: First feature preprocessing and test of various classifiers, working with only a subset of the train test
 * `cfm2024_2.py`: Evaluating the best classifier from `cfm2024.py` on the whole given  test (divided in train and valuation)
 * `cfm_preprocessing.py`: preprocess the features of 'X_train_N1UvY30.csv' into the new features to create the new csv file 'X_train_processed.csv'
-* 'cfm_preprocessing.py': preprocess the features of 'X_test_m4HAPAP.csv' into the new features to create the new csv file 'X_test_processed.csv'
+* `cfm_preprocessing.py`: preprocess the features of 'X_test_m4HAPAP.csv' into the new features to create the new csv file 'X_test_processed.csv'
 * `cfm2024_test.py`: First submission: fit `HistBoostingClassifier` to the preprocessed features in the train test and predict the test set
 * `cfm2024_3.py`: After poor scoring of the first submission, trying to see what was wrong:
     * check if the distribution of train predictions differs from the one of test predictions
     * check if the distribution of validation predicition differs from the one of test predictions
 * `cfm_preprocessing_2.py`: After poor scoring of the first submission, we change some of the features, see [Modifications](#modifications)
 * `cfm2024_new_features.py`: Same as `cfm2024_2.py` but with the new features. However, many of the new features have value infinity (we divide by zero), so before continueing we have to re-evaluate the choice of new features.
+* `cfm2024_analysis.py`: Use Out-of-Fold (OOF) evaluation to train the model. Compare predicted train labels, true train labels and test labels.
 * `test.py`: file to use to test code.
+
 
 ## Challenge goals
 
@@ -165,3 +167,32 @@ ask_distance = (ask - mid_price) / mid_price
 * Instead of bid_size and ask_side take their ratio: bid_size/ask_size (and take mean and std)
 * Add cancel_trade_ratio = total_cancels / (total_trades + 1)
 
+
+## TO DO
+* Tune the hyperparameters of HistBoostingClassifier:
+    * max_leaf_nodes
+    * l2_regularization
+    * learning_rate
+    * max_iter
+
+    using OOF log loss (check what it is used on the website!) and not accuracy 
+* Check whether train and test set are different: how? Train a classifier to distinguish train from test: 
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import roc_auc_score
+
+        # create a dataset:
+        # train rows = 0
+        # test rows = 1
+
+        X_shift = pd.concat([X_train, X_test])
+        y_shift = np.array(
+            [0]*len(X_train) + [1]*len(X_test)
+        )
+    Then fit a classifier on this (with train and val sets), e.g. HistBoostingClassifier, take the predicted probabilities and use as score the AUC = `roc_auc_score` see p.120-123 of ML-book.
+
+    Then: 
+    * if auc ~ 0.5: the model cannot distinguish test from train, so probably unusual class predictions are because the class distribution in the hidden test set is different.
+    * if auc ~ 0.8: the test set contains patterns not present in the train. Investigate
+            ``drift_model.feature_importances_``
+    to find which feature cause drift. 
+    
