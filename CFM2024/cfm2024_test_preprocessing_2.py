@@ -4,8 +4,8 @@ import os
 
 # =========== Preprocessing ==================
 
-input_file = 'X_train_N1UvY30.csv'
-output_file = 'X_train_processed_2.csv'
+input_file = 'X_test_m4HAPAP.csv'
+output_file = 'X_test_processed_2.csv'
 chunk_size = 100000
 
 all_venues = pd.read_csv(input_file, usecols=["venue"])["venue"].unique()

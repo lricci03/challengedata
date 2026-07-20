@@ -3,4 +3,7 @@ CFM2024/X_test_m4HAPAP.csv
 X_train_processed.csv
 X_train_processed_2.csv
 X_test_processed.csv
-# CFM2024/*.csv
+X_test_processed_2.csv
+X_new_processed.csv
+X_new_test_processed.csv
+CFM2024/*.csv

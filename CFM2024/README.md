@@ -9,7 +9,8 @@
 * `cfm2024_3.py`: After poor scoring of the first submission, trying to see what was wrong:
     * check if the distribution of train predictions differs from the one of test predictions
     * check if the distribution of validation predicition differs from the one of test predictions
-* `cfm_preprocessing_2.py`: After poor scoring of the first submission, we change some of the features, see [Modifications](#modifications)
+* `train_vs_test.py`: After poor scoring of the first submission, we compare the train set to the test set
+* `cfm_preprocessing_2.py`: After poor scoring of the first submission, we change some of the features, see [Analysis & Modifications](#analysis--modifications)
 * `cfm2024_new_features.py`: Same as `cfm2024_2.py` but with the new features. However, many of the new features have value infinity (we divide by zero), so before continueing we have to re-evaluate the choice of new features.
 * `cfm2024_analysis.py`: Use Out-of-Fold (OOF) evaluation to train the model. Compare predicted train labels, true train labels and test labels.
 * `test.py`: file to use to test code.
@@ -21,7 +22,8 @@ The aim of this challenge is to attempt to identify from which stock a piece of 
 
 ## Data description
 
-**X**: The dataset consists of 100 sequential order-book observations. There are 20 observations randomly taken per stock and per day. There are 504 days in the dataset (approximately 2 years) and 24 stocks. This means there are 100 x 20 x 504 x 24 rows of data = 24'192'000. The columns correspond to the following items:
+**X**: The dataset consists of 100 sequential order-book observations. There are 20 observations randomly taken per stock and per day. There are 504 days in the dataset (approximately 2 years) and 24 stocks. This means there are 100 x 20 x 504 x 24 rows of data = 24'192'000. 
+The columns correspond to the following items:
 * obs_id: uniquely identifies a sequence of 100 order book events drawn from a random stock inside a random day; **All rows with same obs_id concern the same stock on the same day**
 * venue: The exchange on which the event occurs. It can be NASDAQ, BATY, etc. but they are just encoded in the data as integers;
 * action: This is type of order-book event that occurred, it can be ‘A’, ‘D’ or ‘U’. A means volume was added to the book in the form of a new order. ‘D’ means an order was deleted from the book and ‘U’ means an order was updated;
@@ -39,6 +41,8 @@ The aim of this challenge is to attempt to identify from which stock a piece of 
 Because the price itself provides such a large clue, we subtract the best bid price for the first event in the sequence of 100 from the ‘price’, ‘bid’ and ‘ask’ fields.
 
 ### NOTES on X
+- The obs_id are not chronological: we have 20 observations per stock per day, so with 24 stocks we have $20\times24=480$ observations per day. It **does not hold** that obs_0 to obs_479 describe the first day.
+In fact, by inspecring the labels, between obs_0 and obs_479 stock_21 appears 27 times, stock_10 appears 25 times, ... and stock_2 appears only 14 times.
 - A (add) `action` means that a trader placed a new limit order in the order book.
 
     Since it just sits in the order book waiting, it has not traded yet -> `trade` will always be False.
@@ -150,23 +154,59 @@ Looking at the distribution of predictions over the train, valuation and test se
 
 On the test set, the predictions are more skewed, varying between 8% and 1%. Notice that the challenge description doesn't specify how the stocks are distributed in the test set, only that the observations come from a future period.
 
-### Modifications
+### Analysis & Modifications
 
-We can try to remove features that are not stable over time, such as:
-* mean, median, max, min price
-* mean, std, max spread
+#### Train vs Test set
+Check whether train and test set are different: how? Train a classifier to distinguish train from test:         
+
+    # create a dataset:
+    # train rows = 0
+    # test rows = 1
+
+    X_shift = pd.concat([X_train, X_test])
+    y_shift = np.array(
+        [0]*len(X_train) + [1]*len(X_test)
+    )
+Then fit a classifier on this (with train and val sets), e.g. HistBoostingClassifier, take the predicted probabilities and use as score the AUC = `roc_auc_score` see p.120-123 of ML-book.
+
+Then: 
+* if auc ~ 0.5: the model cannot distinguish test from train, so probably unusual class predictions are because the class distribution in the hidden test set is different.
+* if auc ~ 0.8: the test set contains patterns not present in the train. Investigate which feature cause drift.
+
+Result: 0.86.
+
+The most important features are
+* mean_flux_abs:
+    flux measures the rate of change in the order book. But it can depend on price level (if price rises, it takes more capital to buy the same volume), and time period.
+* mean_queue_depth 
+* min_price 
+* max_price
+* top_book_vol 
+* venue_5_ratio
+* max_spread
+* venue_3_ratio
+* venue_1_ratio   
+
+**Changes**:
+We made the following changes in `cfm2024_preprocessing_2.py` (and in `cfm2024_test_preprocessing_2.py`):
+* Instead of mean_flux_abs: flux_per_order = mean_flux_abs / unique_orders
+* Instead of the venue ratios: venue_entropy
+* Turn min, max and median price into percentages over median_mid_price
+* Removed top_book_vol
+
+This improves the auc to 0.75, which still means that the model is able to distinguish the train from the test set. The most important feature is flux_per_order.
+
+However, these changes decrease the accuracy score (using OOF) (`cfm2024_mod.py`) to 0.31.
 
 
-** New features**
-* Instead of mean, median, max, min price:
-price_range_pct = (max_price - min_price) / median_price
-* Instead of mean, std, max of spread: mean, std, max of 
-relative_spread = spread / mid_price
-* Instead of mean of best_bid and of best_ask: take mean of: bid_distance = (mid_price - bid) / mid_price, and 
-ask_distance = (ask - mid_price) / mid_price
-* Instead of bid_size and ask_side take their ratio: bid_size/ask_size (and take mean and std)
-* Add cancel_trade_ratio = total_cancels / (total_trades + 1)
+**Removing features**
+We try to remove further features in `new_features_model_2.py` (this code is to generate `X_test_processed_3.csv`, and to generate `X_train_processed_3.csv` one can copy and change the input_file).
 
+We train on these features with a ratio of 2:1 train:validation set and we get an accuracy of 0.2787, which is closer to what we get on the test set. 
+
+The most important features are mean_queue_depth and mean_flux_abs. If we drop them, the accuracy drops to 0.17.
+
+Notice that chat-gpt would like to get a more balanced feature importance, while here we get two features that determine the prediction.
 
 ## TO DO
 * Tune the hyperparameters of HistBoostingClassifier:
@@ -176,23 +216,5 @@ ask_distance = (ask - mid_price) / mid_price
     * max_iter
 
     using OOF log loss (check what it is used on the website!) and not accuracy 
-* Check whether train and test set are different: how? Train a classifier to distinguish train from test: 
-        from sklearn.model_selection import train_test_split
-        from sklearn.metrics import roc_auc_score
 
-        # create a dataset:
-        # train rows = 0
-        # test rows = 1
-
-        X_shift = pd.concat([X_train, X_test])
-        y_shift = np.array(
-            [0]*len(X_train) + [1]*len(X_test)
-        )
-    Then fit a classifier on this (with train and val sets), e.g. HistBoostingClassifier, take the predicted probabilities and use as score the AUC = `roc_auc_score` see p.120-123 of ML-book.
-
-    Then: 
-    * if auc ~ 0.5: the model cannot distinguish test from train, so probably unusual class predictions are because the class distribution in the hidden test set is different.
-    * if auc ~ 0.8: the test set contains patterns not present in the train. Investigate
-            ``drift_model.feature_importances_``
-    to find which feature cause drift. 
     
