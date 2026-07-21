@@ -63,7 +63,7 @@ print(importances)
 # removed min_price, max_price, median_price
 
 # the new features are stored in X_train_processed_2.csv
-# # we try again  
+# we try again  
 
 
 X_train = pd.read_csv('X_train_processed_2.csv', index_col='obs_id')

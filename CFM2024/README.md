@@ -1,18 +1,22 @@
 # Challenge Data - CFM 2024
 
 ## Files
-* `cfm2024.py`: First feature preprocessing and test of various classifiers, working with only a subset of the train test
-* `cfm2024_2.py`: Evaluating the best classifier from `cfm2024.py` on the whole given  test (divided in train and valuation)
+* `cfm2024.py`: First feature preprocessing and test of various classifiers, working with only a subset of the train test.
+* `cfm2024_2.py`: Evaluating the best classifier from `cfm2024.py` on the whole given  test (divided in train and valuation).
 * `cfm_preprocessing.py`: preprocess the features of 'X_train_N1UvY30.csv' into the new features to create the new csv file 'X_train_processed.csv'
 * `cfm_preprocessing.py`: preprocess the features of 'X_test_m4HAPAP.csv' into the new features to create the new csv file 'X_test_processed.csv'
 * `cfm2024_test.py`: First submission: fit `HistBoostingClassifier` to the preprocessed features in the train test and predict the test set
-* `cfm2024_3.py`: After poor scoring of the first submission, trying to see what was wrong:
+* `train_vs_test_distr.py`: After poor scoring of the first submission, trying to see what was wrong:
     * check if the distribution of train predictions differs from the one of test predictions
     * check if the distribution of validation predicition differs from the one of test predictions
-* `train_vs_test.py`: After poor scoring of the first submission, we compare the train set to the test set
-* `cfm_preprocessing_2.py`: After poor scoring of the first submission, we change some of the features, see [Analysis & Modifications](#analysis--modifications)
-* `cfm2024_new_features.py`: Same as `cfm2024_2.py` but with the new features. However, many of the new features have value infinity (we divide by zero), so before continueing we have to re-evaluate the choice of new features.
+* `train_vs_test.py`: After poor scoring of the first submission, we see if we can distinguish the train set from the test set
 * `cfm2024_analysis.py`: Use Out-of-Fold (OOF) evaluation to train the model. Compare predicted train labels, true train labels and test labels.
+* `new_train_set.py`: Create file 'submission_3.csv' giving weights to instances. The weights are based on their similarity with the test set. Use features from 'X_train_processed.csv'. See [Submission with weighted instances](#submission-with-weighted-instances).
+* `cfm2024_preprocessing_3.py`: changing few of the features: it creates the file 'X_test_processed_4.csv', analogous file (we used test.py) generates the new features for the train set. 
+* `train_vs_set_2.py`: Using 'X_test_processed_4.csv', 'X_train_processed_4.csv' we see how well a classifier can distinguish them (AUC, analogous to train_vs_test.py) and check the feature importance.
+* `cfm2024_preprocessing_4.py`: generate new features that are hopefully less time-dependent, see [Feature fine-tuning](#feature-fine-tuning). The generated instances are in 'X_train_processed_5.csv' and 'X_test_processed_5.csv'.
+* `train_vs_set_3.py`: Using 'X_test_processed_5.csv', 'X_train_processed_5.csv' we see how well a classifier can distinguish them (AUC, analogous to train_vs_test_2.py) and check the feature importance.
+* `new_train_set_2.py`: Create file 'submission_5.csv' giving weights to instances. The weights are based on their similarity with the test set. Use features from 'X_train_processed_5.csv'.
 * `test.py`: file to use to test code.
 
 
@@ -148,9 +152,9 @@ The accuracy of HistGradientBoosting alone is higher than the SoftVotingClassifi
 
 ## First Submission
 
-The accuracy score on the valuation set (0.2 of given train set) is **0.57**, however the submission scores **0.28**.
+The accuracy score on the valuation set (0.2 of given train set) is **0.57**, however the submission scores **0.277**.
 
-Looking at the distribution of predictions over the train, valuation and test set (see *cfm2024_3.py*), we notice that on the train and valuation set each class is assigned to ~4% of the instances, which is consistent with the fact that there are 24 stocks (1/24 = 0.0417).
+Looking at the distribution of predictions over the train, valuation and test set (see `train_vs_test_distr.py`), we notice that on the train and valuation set each class is assigned to ~4% of the instances, which is consistent with the fact that there are 24 stocks (1/24 = 0.0417).
 
 On the test set, the predictions are more skewed, varying between 8% and 1%. Notice that the challenge description doesn't specify how the stocks are distributed in the test set, only that the observations come from a future period.
 
@@ -204,11 +208,59 @@ We try to remove further features in `new_features_model_2.py` (this code is to 
 
 We train on these features with a ratio of 2:1 train:validation set and we get an accuracy of 0.2787, which is closer to what we get on the test set. 
 
+But then on the test set we get 0.18!
+
 The most important features are mean_queue_depth and mean_flux_abs. If we drop them, the accuracy drops to 0.17.
 
 Notice that chat-gpt would like to get a more balanced feature importance, while here we get two features that determine the prediction.
 
+## Submission with weighted instances
+The following is implemented in `new_train_set.py` with features obtained from `cfm_preprocessing.py`. 
+
+We want to 
+1.  get a split train/validation that is more similar to train/test, since instances are not given in chronological order.
+2. when fitting the whole train set, assign weight to the instances that reflect their similarity with the test set.
+
+**Train/validation splitting**
+We use a classifier to determine which instances of the train set are more similar to the test set: give label 0 to instances in the train set, and label 1 to instances in the test set. Then use out-of-fold evaluation to predict the label of the whole train set. We use out-of-fold so that we can predict the whole train set without leakage. 
+
+As classifier we use again HistGradientBoostingClassifier which has a probability method. We order the train instances by probability and use the 0.2 with highest probability of being in the test set as validation set, while the rest as train set. In this way we hope to get an accuracy score closer to the one we would get on the test set, since validation instances are more similar to the test set. 
+
+The resulting accuracy is similar to a random train/val split: 0.5345.
+
+**Weighting the train set**
+We transform the probabilities of the whole train set into weights: this is explained in more details in my personal notes but basically the predicted probabilities give the probability that an instance belongs to the test set, given its features. We want to weight an instance by ratio of instances with its features in the test set, over the train set. 
+
+Once we have the list of weights for the whole train set, we can feed it to the classifier's `fit` method which has the `sample_weights` option. 
+
+We predict the test set, and the resulting accuracy is: **0.284**.
+Small improvement.
+
+## Feature fine-tuning
+We analyze the features that differentiate the test from the train set (see `train_vs_test_2.py`). 
+We try to remove some time-dependence from the features. This is done in `cfm2024_preprocessing_4.py`.
+
+The `tick_size`: minimum nonzero absolute price difference between consecutive distinct prices in the sequence.
+
+- The following features are normalized by the `tick_size`:
+    - 'median_price', 'min_price', 'max_price', 'median_mid_price',
+'mean_best_ask', 'median_best_ask', 'min_best_ask', 'max_best_ask',
+'mean_best_bid', 'median_best_bid', 'min_best_bid', 'max_best_bid',
+'min_spread', 'max_spread', 'std_spread', 'mean_queue_depth'
+
+- The flux is computed relative to the local book depth (bid_size + ask_size) it is acting on
+
+- Drop the top of the book volatility since it is redundant with realized_variance and it was a top shift-driver. 
+
+- We keep the venues: The challenge description explicitly names venue split as one of the intended stock fingerprints, so treat this differently from the price features: the goal is to figure out whether the shift in venue_1/2/3/5 is a market-wide trend (e.g., an alternative venue gained overall market share over the two years — true for every stock, so it's shift with zero classification value) or a stock-specific pattern that happens to correlate with time. You can't fully separate these without cross-sectional day-level data, which you don't have. So test it empirically rather than reasoning it out: run two ablations — full venue set vs. only venue_0/venue_4 (the two low-shift ones) — using your test-like 20% holdout, and if you have submission budget, push both. Whichever wins tells you whether the drift-heavy venues are worth their shift cost.
+
+With this modifications the AUC is **0.8562** (before it was 0.8686, see `train_vs_test_2.py`).
+
+Generate a new submission with these features, weighted: `new_train_set_2.py`. The score is ** **.
+
 ## TO DO
+* understand what to do with the venues, see above. 
+
 * Tune the hyperparameters of HistBoostingClassifier:
     * max_leaf_nodes
     * l2_regularization
