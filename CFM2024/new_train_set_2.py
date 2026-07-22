@@ -77,7 +77,7 @@ hgb_clf.fit(new_X_train,new_y_train)
 y_val_pred = hgb_clf.predict(new_X_val)
 
 print(accuracy_score(new_y_val, y_val_pred))
-
+# 0.5223
 '''
 
 # ============== weights for test instances in fit method ==============
@@ -121,4 +121,4 @@ submission = pd.DataFrame({
 # Save
 submission.to_csv("submission_4.csv", index=False)
 
-# 
+# score is 0.28333

@@ -226,7 +226,7 @@ We use a classifier to determine which instances of the train set are more simil
 
 As classifier we use again HistGradientBoostingClassifier which has a probability method. We order the train instances by probability and use the 0.2 with highest probability of being in the test set as validation set, while the rest as train set. In this way we hope to get an accuracy score closer to the one we would get on the test set, since validation instances are more similar to the test set. 
 
-The resulting accuracy is similar to a random train/val split: 0.5345.
+The resulting accuracy is similar to a random train/val split: **0.5345**.
 
 **Weighting the train set**
 We transform the probabilities of the whole train set into weights: this is explained in more details in my personal notes but basically the predicted probabilities give the probability that an instance belongs to the test set, given its features. We want to weight an instance by ratio of instances with its features in the test set, over the train set. 
@@ -254,9 +254,13 @@ The `tick_size`: minimum nonzero absolute price difference between consecutive d
 
 - We keep the venues: The challenge description explicitly names venue split as one of the intended stock fingerprints, so treat this differently from the price features: the goal is to figure out whether the shift in venue_1/2/3/5 is a market-wide trend (e.g., an alternative venue gained overall market share over the two years — true for every stock, so it's shift with zero classification value) or a stock-specific pattern that happens to correlate with time. You can't fully separate these without cross-sectional day-level data, which you don't have. So test it empirically rather than reasoning it out: run two ablations — full venue set vs. only venue_0/venue_4 (the two low-shift ones) — using your test-like 20% holdout, and if you have submission budget, push both. Whichever wins tells you whether the drift-heavy venues are worth their shift cost.
 
+In `train_vs_test_3.py` we compute the AUC and look at the feature importances again.
+
 With this modifications the AUC is **0.8562** (before it was 0.8686, see `train_vs_test_2.py`).
 
-Generate a new submission with these features, weighted: `new_train_set_2.py`. The score is ** **.
+The accuracy score for the split train/validation where the validation instances are the ones more similar to the test set is: **0.5223**.
+
+Generate a new submission with these features, weighted: `new_train_set_2.py`. The score is **0.2833**, slightly worst than the previous one.
 
 ## TO DO
 * understand what to do with the venues, see above. 

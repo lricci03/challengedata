@@ -1,136 +1,120 @@
-# We are able to distinguish the train set from the test set (roc_auc of 0.87, see train_vs_test.py)
-# So to get a validation set more similar to the test set, we take the 0.2 instances that are more similar to the test set
-
 import pandas as pd
 import numpy as np
-import math
-
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_predict
-from sklearn.metrics import roc_auc_score, accuracy_score
-from sklearn.ensemble import HistGradientBoostingClassifier
-
-X_train = pd.read_csv('X_train_processed_4.csv', index_col='obs_id')
-
-y_train = pd.read_csv('y_train_or6m3Ta.csv', index_col='obs_id')['eqt_code_cat']
-y_train = y_train.reindex(X_train.index)
-assert y_train.notna().all()
-X_test = pd.read_csv('X_test_processed_4.csv', index_col='obs_id')
-
-assert list(X_train.columns) == list(X_test.columns), (
-    set(X_train.columns) ^ set(X_test.columns),   # symmetric difference — what's mismatched
-)
-
-assert X_train.index.is_unique
-assert X_test.index.is_unique
-
-# ============ probabilities of being in train vs test set ============
-X_shift = pd.concat([X_train,X_test])
-y_shift = np.array([0]*len(X_train) + [1]*len(X_test))
-
-# Need to compute probabilities with out-of-fold (OOF)
-# in this way the model never sees the data it is predicting
-# bc we divide the train set based on the predicted probabilities
-
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-oof_probas = cross_val_predict(
-    HistGradientBoostingClassifier(), X_shift, y_shift,
-    cv=skf, method='predict_proba', n_jobs=-1
-)[:, 1]
+import os
 
 
-auc = roc_auc_score(y_shift,oof_probas)
-print(auc)
+def build_venue_columns(input_file):
+    """Derive the venue column list ONCE, from train only, and reuse it
+    for both train and test. Recomputing it separately per file is what
+    caused the earlier column-mismatch risk."""
+    venues = pd.read_csv(input_file, usecols=["venue"])["venue"].unique()
+    return [f"venue_{int(v)}_ratio" for v in sorted(venues)]
 
 
-"""
-''' use the pythonic way below
-# ========= Sorting X_train by predicted probabilities of being in the test set and choosing 0.8 for the new train set 
+def preprocess(input_file, output_file, venue_columns, chunk_size=100_000):
+    eps = 1e-6
 
-train_probas_enum = [(idx, item) for idx,item in enumerate(y_train_probas)]
+    # raw-currency / raw-count price features that get converted to
+    # tick-normalized, scale-free versions after aggregation, then dropped
+    price_like_cols = [
+        'median_price', 'min_price', 'max_price', 'median_mid_price',
+        'mean_best_ask', 'median_best_ask', 'min_best_ask', 'max_best_ask',
+        'mean_best_bid', 'median_best_bid', 'min_best_bid', 'max_best_bid',
+        'min_spread', 'max_spread', 'std_spread', 'mean_queue_depth',
+    ]
 
-train_probas_enum_sorted = sorted(train_probas_enum, key=lambda proba: proba[1])
+    if os.path.exists(output_file):
+        os.remove(output_file)  # avoid silently appending to a stale file on rerun
 
-sorted_idx = [idx for idx, _ in train_probas_enum_sorted]
-threshold = math.floor(0.8*len(sorted_idx))
-sorted_idx_80 = sorted_idx[:threshold]
+    for df in pd.read_csv(input_file, chunksize=chunk_size):
+        df['spread'] = df['ask'] - df['bid']
+        df['mid_price'] = (df['ask'] + df['bid']) / 2
+        df['relative_spread'] = df['spread'] / np.clip(df['mid_price'], eps, None)
+        df['obi'] = (df['bid_size'] - df['ask_size']) / (df['bid_size'] + df['ask_size'])
+        df['is_trade'] = df['trade'].astype(int)
+        df['is_cancel'] = ((df['action'] == 'D') & (~df['trade'])).astype(int)
+        df.loc[df['action'] == 'A', 'queue_depth_when_new'] = np.abs(df['price'] - df['mid_price'])
 
-new_train = X_train.iloc[sorted_idx_80,:]
-'''
+        # flux relative to the local book depth it's acting on, instead of
+        # an absolute magnitude that drifts with market-wide liquidity
+        # trends over the two years
+        df['flux_rel'] = np.abs(df['flux']) / (df['bid_size'] + df['ask_size'] + 1)
 
-# ========= Pythonic way of sorting ==============
-'''
-threshold_value = np.percentile(y_train_probas, 80)
+        new = df.groupby('obs_id').agg(
+            median_price=('price', 'median'),
+            min_price=('price', 'min'),
+            max_price=('price', 'max'),
+            median_mid_price=('mid_price', 'median'),
+            mean_best_ask=('ask', 'mean'),
+            median_best_ask=('ask', 'median'),
+            min_best_ask=('ask', 'min'),
+            max_best_ask=('ask', 'max'),
+            mean_best_bid=('bid', 'mean'),
+            median_best_bid=('bid', 'median'),
+            min_best_bid=('bid', 'min'),
+            max_best_bid=('bid', 'max'),
+            std_spread=('spread', 'std'),
+            min_spread=('spread', 'min'),
+            max_spread=('spread', 'max'),
+            median_relative_spread=('relative_spread', 'median'),
+            mean_bid_size_log=('bid_size', lambda x: np.mean(np.log1p(x))),
+            median_bid_size=('bid_size', 'median'),
+            mean_ask_size_log=('ask_size', lambda x: np.mean(np.log1p(x))),
+            median_ask_size=('ask_size', 'median'),
+            mean_obi=('obi', 'mean'),
+            total_trades=('is_trade', 'sum'),
+            total_cancels=('is_cancel', 'sum'),
+            mean_flux_rel=('flux_rel', 'mean'),          # replaces mean_flux_log_abs
+            unique_orders=('order_id', 'nunique'),
+            mean_queue_depth=('queue_depth_when_new', 'mean'),
+            tick_size=('price', lambda x: (
+                x.drop_duplicates()
+                 .sort_values()   # <-- bug fix: must sort before diff().
+                 .diff()          #     drop_duplicates() alone preserves
+                 .abs()           #     order of first appearance, not price
+                 .loc[lambda diffs: diffs > 0]   # order, so the old version measured
+                 .min()                          # gaps between temporally-adjacent
+            )),                                  # distinct prices, not the true
+                                                  # minimum spacing between price
+                                                  # levels -- it could miss the
+                                                  # actual tick size entirely.
+            realized_variance=('mid_price', lambda x: (x.diff() ** 2).sum()),
+        )
+        # top_book_vol dropped: redundant with realized_variance, and it
+        # was a top shift-driver (std of raw mid_price leaks price level)
 
-train_mask = y_train_probas < threshold_value
-new_X_train = X_train[train_mask]
-new_y_train = y_train[train_mask]
+        new['cancel_ratio'] = new['total_cancels'] / 100
+        new['trade_frequency'] = new['total_trades'] / 100
 
-val_mask = ~ train_mask
-new_X_val = X_train[val_mask]
-new_y_val = y_train[val_mask]
-'''
+        # convert remaining raw-currency features to tick-normalized,
+        # scale-free versions, then drop the raw ones. NaN where tick_size
+        # is undefined (single unique price in the sequence) -- HGB
+        # handles NaN natively, so no imputation needed.
+        for col in price_like_cols:
+            new[f'{col}_ticks'] = new[col] / new['tick_size']
+        new = new.drop(columns=price_like_cols)
 
-# ========= fit and predict on new train/val sets =============
-'''
-hgb_clf = HistGradientBoostingClassifier(
-    max_iter=300,
-    learning_rate=0.05,
-    max_leaf_nodes=31,
-    min_samples_leaf=50,
-    l2_regularization=1,
-    random_state=42
-)
+        # venue ratios: always reindexed against the externally supplied,
+        # fixed venue_columns list, so train and test get identical
+        # columns in identical order regardless of which venues actually
+        # appear in a given file. Not removing any venues -- test that
+        # via ablation at modeling time instead.
+        venue_ratios = (
+            df.groupby('obs_id')['venue']
+              .value_counts(normalize=True)
+              .unstack(fill_value=0)
+        )
+        venue_ratios.columns = [f"venue_{int(v)}_ratio" for v in venue_ratios.columns]
+        venue_ratios = venue_ratios.reindex(columns=venue_columns, fill_value=0)
 
-hgb_clf.fit(new_X_train,new_y_train)
+        X = pd.concat([new, venue_ratios], axis=1).reset_index()
 
-y_val_pred = hgb_clf.predict(new_X_val)
-
-print(accuracy_score(new_y_val, y_val_pred))
-# 0.5345149253731343
-'''
-
-# ============== weights for test instances in fit method ==============
-# let p be the predict_proba of the instance
-# Then the instance should have weight p/(1-p) * (2/3)/(1/3) = p/(1-p) * 2
-# since the ratio of train : test is 2:1. 
+        file_exists = os.path.exists(output_file)
+        X.to_csv(output_file, mode='a', index=False, header=not file_exists)
 
 
-probas = oof_probas[:len(X_train)]  # concat order preserved, so this slice is safe
+if __name__ == '__main__':
+    venue_columns = build_venue_columns('X_train_N1UvY30.csv')
 
-# ===== weights are clipped to avoid infinity if probabilities are near 1
-eps = 1e-6
-weights = 2 * probas / np.clip(1 - probas, eps, None) # protects by 0 division -> it substitues 0 with eps
-
-lower = np.percentile(weights, 1)
-upper = np.percentile(weights, 99)
-weights = np.clip(weights, lower, upper)
-# weights /= weights.mean()
-
-ess = weights.sum()**2 / (weights**2).sum()
-print(ess, len(weights))
-
-# ============== fit and predict with weights for submission ==============
-hgb_clf = HistGradientBoostingClassifier(
-    max_iter=300,
-    learning_rate=0.05,
-    max_leaf_nodes=31,
-    min_samples_leaf=50,
-    l2_regularization=1,
-    random_state=42
-)
-
-hgb_clf.fit(X_train,y_train, sample_weight= weights)
-
-y_pred = hgb_clf.predict(X_test)
-
-# Create submission
-submission = pd.DataFrame({
-    "obs_id": X_test.index,
-    "eqt_code_cat": y_pred
-})
-
-# Save
-submission.to_csv("submission_3.csv", index=False)
-
-# the score is 0.284
-"""
+    # preprocess('X_train_N1UvY30.csv', 'X_train_processed_5.csv', venue_columns)
+    preprocess('X_test_m4HAPAP.csv', 'X_test_processed_5.csv', venue_columns)  # adjust filename if different
