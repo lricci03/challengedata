@@ -7,4 +7,4 @@ X_test_processed_2.csv
 X_new_processed.csv
 X_new_test_processed.csv
 CFM2024/*.csv
-CFM2024/cfm2024-update*.parquet
+CFM2024-new/*.parquet
