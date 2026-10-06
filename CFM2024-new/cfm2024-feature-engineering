@@ -1,0 +1,843 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4",
+      "authorship_tag": "ABX9TyPL90bn3UHr4POkbCiFftUF",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/lricci03/challengedata/blob/main/CFM2024-new/cfm2024-feature-engineering\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Feature engeneering"
+      ],
+      "metadata": {
+        "id": "69r_Yp5kF58u"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Create new features that encode the 100 observations per obs_id, such as mean price, min price, max price, number of total trades, etc."
+      ],
+      "metadata": {
+        "id": "yIaTWpcJHEAg"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "\n",
+        "# drive.flush_and_unmount()\n",
+        "drive.mount(\"/content/drive\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "svJXQz0zemGi",
+        "outputId": "bb9bda2d-33d5-4527-8545-4770fe55a967"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Mounted at /content/drive\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "07IXbac2F24B",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "673d9f29-d569-4379-d121-96b70311de87"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "<class 'pandas.core.frame.DataFrame'>\n",
+            "RangeIndex: 16080000 entries, 0 to 16079999\n",
+            "Data columns (total 12 columns):\n",
+            " #   Column    Dtype  \n",
+            "---  ------    -----  \n",
+            " 0   obs_id    int64  \n",
+            " 1   venue     int64  \n",
+            " 2   order_id  int64  \n",
+            " 3   action    object \n",
+            " 4   side      object \n",
+            " 5   price     float64\n",
+            " 6   bid       float64\n",
+            " 7   ask       float64\n",
+            " 8   bid_size  int64  \n",
+            " 9   ask_size  int64  \n",
+            " 10  trade     bool   \n",
+            " 11  flux      int64  \n",
+            "dtypes: bool(1), float64(3), int64(6), object(2)\n",
+            "memory usage: 2.6 GB\n"
+          ]
+        }
+      ],
+      "source": [
+        "import pandas as pd\n",
+        "\n",
+        "df = pd.read_parquet(\"/content/drive/MyDrive/Challengedata/Xtrain.parquet\")\n",
+        "df.info(memory_usage=\"deep\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.shape\n",
+        "df.memory_usage(deep=True).sum() / 1024**3"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "2A447kOce0_H",
+        "outputId": "e00d7e25-b943-412d-97d8-ec9bc69831f7"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "np.float64(2.5907905139029026)"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 6
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Reduces dtypes. Not price columns as they could contain small prices/price differences."
+      ],
+      "metadata": {
+        "id": "FHPVcB5vfT1I"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df[\"venue\"] = df[\"venue\"].astype(\"int8\")\n",
+        "df[\"action\"] = df[\"action\"].astype(\"category\")\n",
+        "df[\"side\"] = df[\"side\"].astype(\"category\")\n",
+        "\n",
+        "df[\"bid_size\"] = pd.to_numeric(df[\"bid_size\"], downcast=\"integer\")\n",
+        "df[\"ask_size\"] = pd.to_numeric(df[\"ask_size\"], downcast=\"integer\")\n",
+        "df[\"flux\"] = pd.to_numeric(df[\"flux\"], downcast=\"integer\")\n",
+        "df[\"order_id\"] = pd.to_numeric(df[\"order_id\"], downcast=\"integer\")"
+      ],
+      "metadata": {
+        "id": "2KqHek5dfIKJ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.shape\n",
+        "df.memory_usage(deep=True).sum() / 1024**3"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "HFSCjLHQfOYy",
+        "outputId": "c8c6ace5-a824-49c1-d46d-c41141570134"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "np.float64(0.7338082399219275)"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 8
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Sanity checks"
+      ],
+      "metadata": {
+        "id": "1Ps6D8OgflGv"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df[\"obs_id\"].nunique()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "PxWbUBa3fl5h",
+        "outputId": "82d99038-d82e-4d6a-f242-30765b6d8b21"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "160800"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 9
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df.groupby(\"obs_id\").size().value_counts()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 114
+        },
+        "id": "MAU8NiojfozA",
+        "outputId": "cb6f5725-63d0-43e4-b07b-83240b63f1b3"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "100    160800\n",
+              "Name: count, dtype: int64"
+            ],
+            "text/html": [
+              "<div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>count</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>100</th>\n",
+              "      <td>160800</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "</div><br><label><b>dtype:</b> int64</label>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 10
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "We implement the following features:\n",
+        "\n",
+        "* Price/spread structure:\n",
+        "\n",
+        "  * median_price\n",
+        "  * median_mid_price\n",
+        "\n",
+        "  * mean_spread\n",
+        "  * median_spread\n",
+        "  * std_spread\n",
+        "  * min_spread\n",
+        "  * max_spread\n",
+        "\n",
+        "* Book size:\n",
+        "  * mean_bid_size\n",
+        "  * median_bid_size\n",
+        "  * mean_ask_size\n",
+        "  * median_ask_size\n",
+        "\n",
+        "* Imbalance:\n",
+        "  * mean_obi\n",
+        "  * median_obi\n",
+        "  * std_obi\n",
+        "\n",
+        "* Event composition:\n",
+        "  * trade_frequency\n",
+        "  * cancel_ratio\n",
+        "  * unique_orders\n",
+        "\n",
+        "* Flux:\n",
+        "  * mean_abs_flux: typical event size\n",
+        "  * median_abs_flux\n",
+        "  * mean_flux: net-liquid adding or removing\n",
+        "  * std_flux\n",
+        "\n",
+        "* Venues:\n",
+        "  * venue_x_ratio\n",
+        "\n",
+        "* Actions:\n",
+        "  * add_ratio\n",
+        "  * delete_ratio\n",
+        "  * update_ratio\n",
+        "\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "AN6p3lPigl5j"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Create tick-level helper columns"
+      ],
+      "metadata": {
+        "id": "pYJzUduQil8t"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np\n",
+        "import pandas as pd\n",
+        "\n",
+        "\n",
+        "df[\"mid_price\"] = (df[\"bid\"] + df[\"ask\"]) / 2\n",
+        "df[\"spread\"] = df[\"ask\"] - df[\"bid\"]\n",
+        "\n",
+        "df[\"obi\"] = (\n",
+        "    (df[\"bid_size\"] - df[\"ask_size\"])\n",
+        "    / (df[\"bid_size\"] + df[\"ask_size\"])\n",
+        ")\n",
+        "\n",
+        "df[\"abs_flux\"] = df[\"flux\"].abs()\n",
+        "\n",
+        "df[\"is_trade\"] = df[\"trade\"].astype(\"int8\")\n",
+        "df[\"is_cancel\"] = (\n",
+        "    (df[\"action\"] == \"D\") & (~df[\"trade\"])\n",
+        ").astype(\"int8\")\n",
+        "\n",
+        "df[\"is_add\"] = (df[\"action\"] == \"A\").astype(\"int8\")\n",
+        "df[\"is_delete\"] = (df[\"action\"] == \"D\").astype(\"int8\")\n",
+        "df[\"is_update\"] = (df[\"action\"] == \"U\").astype(\"int8\")"
+      ],
+      "metadata": {
+        "id": "aGuGu2txioMc"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Aggregate observations by obs_id"
+      ],
+      "metadata": {
+        "id": "2zRRcSlXgH7p"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "g = df.groupby(\"obs_id\", sort=False)"
+      ],
+      "metadata": {
+        "id": "ycjVsAMTit4U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Aggregate: this gives one row per obs_id"
+      ],
+      "metadata": {
+        "id": "JWnRNKZzi06f"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "features = g.agg(\n",
+        "    # Price / spread structure\n",
+        "    median_price=(\"price\", \"median\"),\n",
+        "    median_mid_price=(\"mid_price\", \"median\"),\n",
+        "\n",
+        "    mean_spread=(\"spread\", \"mean\"),\n",
+        "    median_spread=(\"spread\", \"median\"),\n",
+        "    std_spread=(\"spread\", \"std\"),\n",
+        "    min_spread=(\"spread\", \"min\"),\n",
+        "    max_spread=(\"spread\", \"max\"),\n",
+        "\n",
+        "    # Book size\n",
+        "    mean_bid_size=(\"bid_size\", \"mean\"),\n",
+        "    median_bid_size=(\"bid_size\", \"median\"),\n",
+        "    mean_ask_size=(\"ask_size\", \"mean\"),\n",
+        "    median_ask_size=(\"ask_size\", \"median\"),\n",
+        "\n",
+        "    # Imbalance\n",
+        "    mean_obi=(\"obi\", \"mean\"),\n",
+        "    median_obi=(\"obi\", \"median\"),\n",
+        "    std_obi=(\"obi\", \"std\"),\n",
+        "\n",
+        "    # Event composition\n",
+        "    trade_frequency=(\"is_trade\", \"mean\"),\n",
+        "    cancel_ratio=(\"is_cancel\", \"mean\"),\n",
+        "    unique_orders=(\"order_id\", \"nunique\"),\n",
+        "\n",
+        "    # Flux\n",
+        "    mean_abs_flux=(\"abs_flux\", \"mean\"),\n",
+        "    median_abs_flux=(\"abs_flux\", \"median\"),\n",
+        "    mean_flux=(\"flux\", \"mean\"),\n",
+        "    std_flux=(\"flux\", \"std\"),\n",
+        "\n",
+        "    # Actions\n",
+        "    add_ratio=(\"is_add\", \"mean\"),\n",
+        "    delete_ratio=(\"is_delete\", \"mean\"),\n",
+        "    update_ratio=(\"is_update\", \"mean\"),\n",
+        ")"
+      ],
+      "metadata": {
+        "id": "oQd2iuoni3aG"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Venue ratios. They produce one column per venue"
+      ],
+      "metadata": {
+        "id": "vim5SRmyi9ow"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "venue_ratios = (\n",
+        "    g[\"venue\"]\n",
+        "    .value_counts(normalize=True)\n",
+        "    .unstack(fill_value=0)\n",
+        ")\n",
+        "\n",
+        "venue_ratios.columns = [\n",
+        "    f\"venue_{v}_ratio\"\n",
+        "    for v in venue_ratios.columns\n",
+        "]"
+      ],
+      "metadata": {
+        "id": "xHtWS8P9jAhe"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "features = pd.concat(\n",
+        "    [features, venue_ratios],\n",
+        "    axis=1\n",
+        ").reset_index()"
+      ],
+      "metadata": {
+        "id": "ega-1nNhjFMl"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "features.shape\n",
+        "features.head()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 253
+        },
+        "id": "0p6Ql6mPjI67",
+        "outputId": "f40a2f03-a19f-4ed2-bc05-04e0fac22820"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "   obs_id  median_price  median_mid_price  mean_spread  median_spread  \\\n",
+              "0       0          0.00             0.010       0.0152           0.02   \n",
+              "1       1          0.01             0.040       0.0392           0.04   \n",
+              "2       2          0.01             0.005       0.0107           0.01   \n",
+              "3       3          0.21             0.150       0.1310           0.10   \n",
+              "4       4          0.02             0.020       0.0174           0.02   \n",
+              "\n",
+              "   std_spread  min_spread  max_spread  mean_bid_size  median_bid_size  ...  \\\n",
+              "0    0.005021        0.01        0.02         190.60            100.0  ...   \n",
+              "1    0.006917        0.02        0.06         290.94            300.0  ...   \n",
+              "2    0.002564        0.01        0.02        1902.15           1510.0  ...   \n",
+              "3    0.046482        0.10        0.20         275.13            200.0  ...   \n",
+              "4    0.004408        0.01        0.02         143.15            122.5  ...   \n",
+              "\n",
+              "     std_flux  add_ratio  delete_ratio  update_ratio  venue_4_ratio  \\\n",
+              "0   93.739861       0.51          0.49          0.00           0.59   \n",
+              "1   94.011927       0.49          0.43          0.08           0.51   \n",
+              "2  151.864373       0.54          0.46          0.00           0.44   \n",
+              "3   74.986447       0.50          0.49          0.01           0.43   \n",
+              "4  126.849955       0.48          0.52          0.00           0.42   \n",
+              "\n",
+              "   venue_1_ratio  venue_5_ratio  venue_2_ratio  venue_0_ratio  venue_3_ratio  \n",
+              "0           0.14           0.07           0.13           0.05           0.02  \n",
+              "1           0.07           0.21           0.10           0.06           0.05  \n",
+              "2           0.02           0.19           0.01           0.11           0.23  \n",
+              "3           0.18           0.09           0.11           0.18           0.01  \n",
+              "4           0.09           0.18           0.02           0.19           0.10  \n",
+              "\n",
+              "[5 rows x 31 columns]"
+            ],
+            "text/html": [
+              "\n",
+              "  <div id=\"df-b0aaa289-8166-48aa-9748-024669ca45e5\" class=\"colab-df-container\">\n",
+              "    <div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>obs_id</th>\n",
+              "      <th>median_price</th>\n",
+              "      <th>median_mid_price</th>\n",
+              "      <th>mean_spread</th>\n",
+              "      <th>median_spread</th>\n",
+              "      <th>std_spread</th>\n",
+              "      <th>min_spread</th>\n",
+              "      <th>max_spread</th>\n",
+              "      <th>mean_bid_size</th>\n",
+              "      <th>median_bid_size</th>\n",
+              "      <th>...</th>\n",
+              "      <th>std_flux</th>\n",
+              "      <th>add_ratio</th>\n",
+              "      <th>delete_ratio</th>\n",
+              "      <th>update_ratio</th>\n",
+              "      <th>venue_4_ratio</th>\n",
+              "      <th>venue_1_ratio</th>\n",
+              "      <th>venue_5_ratio</th>\n",
+              "      <th>venue_2_ratio</th>\n",
+              "      <th>venue_0_ratio</th>\n",
+              "      <th>venue_3_ratio</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>0</td>\n",
+              "      <td>0.00</td>\n",
+              "      <td>0.010</td>\n",
+              "      <td>0.0152</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.005021</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>190.60</td>\n",
+              "      <td>100.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>93.739861</td>\n",
+              "      <td>0.51</td>\n",
+              "      <td>0.49</td>\n",
+              "      <td>0.00</td>\n",
+              "      <td>0.59</td>\n",
+              "      <td>0.14</td>\n",
+              "      <td>0.07</td>\n",
+              "      <td>0.13</td>\n",
+              "      <td>0.05</td>\n",
+              "      <td>0.02</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>1</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.040</td>\n",
+              "      <td>0.0392</td>\n",
+              "      <td>0.04</td>\n",
+              "      <td>0.006917</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.06</td>\n",
+              "      <td>290.94</td>\n",
+              "      <td>300.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>94.011927</td>\n",
+              "      <td>0.49</td>\n",
+              "      <td>0.43</td>\n",
+              "      <td>0.08</td>\n",
+              "      <td>0.51</td>\n",
+              "      <td>0.07</td>\n",
+              "      <td>0.21</td>\n",
+              "      <td>0.10</td>\n",
+              "      <td>0.06</td>\n",
+              "      <td>0.05</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>2</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.005</td>\n",
+              "      <td>0.0107</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.002564</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>1902.15</td>\n",
+              "      <td>1510.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>151.864373</td>\n",
+              "      <td>0.54</td>\n",
+              "      <td>0.46</td>\n",
+              "      <td>0.00</td>\n",
+              "      <td>0.44</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.19</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.11</td>\n",
+              "      <td>0.23</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>3</td>\n",
+              "      <td>0.21</td>\n",
+              "      <td>0.150</td>\n",
+              "      <td>0.1310</td>\n",
+              "      <td>0.10</td>\n",
+              "      <td>0.046482</td>\n",
+              "      <td>0.10</td>\n",
+              "      <td>0.20</td>\n",
+              "      <td>275.13</td>\n",
+              "      <td>200.0</td>\n",
+              "      <td>...</td>\n",
+              "      <td>74.986447</td>\n",
+              "      <td>0.50</td>\n",
+              "      <td>0.49</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.43</td>\n",
+              "      <td>0.18</td>\n",
+              "      <td>0.09</td>\n",
+              "      <td>0.11</td>\n",
+              "      <td>0.18</td>\n",
+              "      <td>0.01</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>4</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.020</td>\n",
+              "      <td>0.0174</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.004408</td>\n",
+              "      <td>0.01</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>143.15</td>\n",
+              "      <td>122.5</td>\n",
+              "      <td>...</td>\n",
+              "      <td>126.849955</td>\n",
+              "      <td>0.48</td>\n",
+              "      <td>0.52</td>\n",
+              "      <td>0.00</td>\n",
+              "      <td>0.42</td>\n",
+              "      <td>0.09</td>\n",
+              "      <td>0.18</td>\n",
+              "      <td>0.02</td>\n",
+              "      <td>0.19</td>\n",
+              "      <td>0.10</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "<p>5 rows × 31 columns</p>\n",
+              "</div>\n",
+              "    <div class=\"colab-df-buttons\">\n",
+              "\n",
+              "  <div class=\"colab-df-container\">\n",
+              "    <button class=\"colab-df-convert\" onclick=\"convertToInteractive('df-b0aaa289-8166-48aa-9748-024669ca45e5')\"\n",
+              "            title=\"Convert this dataframe to an interactive table.\"\n",
+              "            style=\"display:none;\">\n",
+              "\n",
+              "  <svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\">\n",
+              "    <path d=\"M120-120v-720h720v720H120Zm60-500h600v-160H180v160Zm220 220h160v-160H400v160Zm0 220h160v-160H400v160ZM180-400h160v-160H180v160Zm440 0h160v-160H620v160ZM180-180h160v-160H180v160Zm440 0h160v-160H620v160Z\"/>\n",
+              "  </svg>\n",
+              "    </button>\n",
+              "\n",
+              "  <style>\n",
+              "    .colab-df-container {\n",
+              "      display:flex;\n",
+              "      gap: 12px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert {\n",
+              "      background-color: #E8F0FE;\n",
+              "      border: none;\n",
+              "      border-radius: 50%;\n",
+              "      cursor: pointer;\n",
+              "      display: none;\n",
+              "      fill: #1967D2;\n",
+              "      height: 32px;\n",
+              "      padding: 0 0 0 0;\n",
+              "      width: 32px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert:hover {\n",
+              "      background-color: #E2EBFA;\n",
+              "      box-shadow: 0px 1px 2px rgba(60, 64, 67, 0.3), 0px 1px 3px 1px rgba(60, 64, 67, 0.15);\n",
+              "      fill: #174EA6;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-buttons div {\n",
+              "      margin-bottom: 4px;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert {\n",
+              "      background-color: #3B4455;\n",
+              "      fill: #D2E3FC;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert:hover {\n",
+              "      background-color: #434B5C;\n",
+              "      box-shadow: 0px 1px 3px 1px rgba(0, 0, 0, 0.15);\n",
+              "      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));\n",
+              "      fill: #FFFFFF;\n",
+              "    }\n",
+              "  </style>\n",
+              "\n",
+              "    <script>\n",
+              "      const buttonEl =\n",
+              "        document.querySelector('#df-b0aaa289-8166-48aa-9748-024669ca45e5 button.colab-df-convert');\n",
+              "      buttonEl.style.display =\n",
+              "        google.colab.kernel.accessAllowed ? 'block' : 'none';\n",
+              "\n",
+              "      async function convertToInteractive(key) {\n",
+              "        const element = document.querySelector('#df-b0aaa289-8166-48aa-9748-024669ca45e5');\n",
+              "        const dataTable =\n",
+              "          await google.colab.kernel.invokeFunction('convertToInteractive',\n",
+              "                                                    [key], {});\n",
+              "        if (!dataTable) return;\n",
+              "\n",
+              "        const docLinkHtml = 'Like what you see? Visit the ' +\n",
+              "          '<a target=\"_blank\" href=https://colab.research.google.com/notebooks/data_table.ipynb>data table notebook</a>'\n",
+              "          + ' to learn more about interactive tables.';\n",
+              "        element.innerHTML = '';\n",
+              "        dataTable['output_type'] = 'display_data';\n",
+              "        await google.colab.output.renderOutput(dataTable, element);\n",
+              "        const docLink = document.createElement('div');\n",
+              "        docLink.innerHTML = docLinkHtml;\n",
+              "        element.appendChild(docLink);\n",
+              "      }\n",
+              "    </script>\n",
+              "  </div>\n",
+              "\n",
+              "\n",
+              "    </div>\n",
+              "  </div>\n"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "dataframe",
+              "variable_name": "features"
+            }
+          },
+          "metadata": {},
+          "execution_count": 17
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Save to csv"
+      ],
+      "metadata": {
+        "id": "yrRQep6BjraT"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "features.to_csv(\n",
+        "    \"/content/drive/MyDrive/Challengedata/eng_features.csv\",\n",
+        "    index=False\n",
+        ")"
+      ],
+      "metadata": {
+        "id": "dINuT2jSjsKg"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
