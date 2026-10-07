@@ -133,4 +133,30 @@ X_eng is scaled.
 ### Model
 X_seq goes through a nn.GRU layer with hidden size 128.
 
-The output is combined with X_eng and passed to a nn.linear layer (input_size = 30+14) which outputs the 24 classification logits. 
+The output is combined with X_eng and passed to a nn.linear layer (input_size = 30+14) which outputs the 24 classification logits.
+
+## Improvements and variations
+
+## Deep GRU model
+Gru model with `n_layers=2`. 
+
+We reach accuracy of 60% in 69 epochs. This is the best model we found overall.
+
+## Deep GRU joint model
+Implementing deep GRU (2 layers) in the joint model.
+It performs better than the joint model, but not better than Deep gru on the sequential only inputs.
+
+## Input normalization
+Normalization of the sequential data (numerical only) doesn't give a better performance. 
+
+We tried both to normalize all the numerical data, and only the bid_size, ask_size, flux.
+The latter gives better results, but not as good as without normalization.
+
+## Deep GRU joint with deep top layer
+
+This is `DeepJoint2GRUModel` in *joint-model.ipynb*.
+
+Instead of a single linear layer to combine the engineered features with the output of the 2-GRU-stack,
+we stack two linear layers (with ReLU).
+
+We reach only 27% accuracy in 50 epochs.
