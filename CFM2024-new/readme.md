@@ -21,11 +21,15 @@ Each instance is a multivariate series. The series consists of 100 sequential or
 
 obs_id is constant thorugh the series. 
 
-We keep all the numerical features: price, bid, ask, bid_size, ask_size, flux (6).
+We transform order_id into:
+- order_seen_before
+- order_previous_count
 
-We keep and one-hot encode only the following categorial features: action, venue (3 + 5)
+We keep all the numerical features: price, bid, ask, bid_size, ask_size, flux, trade (bool), order_seen_before (bool), order_previous_count (9).
 
-In total we have 14 features. So the input data has shape [160800, 100, 14].
+We keep and one-hot encode the categorial features: action, venue, side (3 + 6 + 2).
+
+In total we have 20 features. So the input data has shape [160800, 100, 20].
 
 Train set: 80% 
 Validation set: 20%
@@ -140,7 +144,7 @@ The output is combined with X_eng and passed to a nn.linear layer (input_size = 
 ## Deep GRU model
 Gru model with `n_layers=2`. 
 
-We reach accuracy of 60% in 69 epochs. This is the best model we found overall.
+We reach accuracy of 61% in 60 epochs. This is the best model we found overall.
 
 ## Deep GRU joint model
 Implementing deep GRU (2 layers) in the joint model.
