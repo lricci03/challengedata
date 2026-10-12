@@ -14,6 +14,28 @@ We combine different approaches:
 * *n*-variate series can also be predicted with (stacks of) convolutional layers, e.g. with a WaveNet structure.
 * Using DNNs **and** RNNs: for each observation, the 100 ticks can be combined in *engineered features*, such as mid price, median price, ratio of venues, etc. 
 We build a model where the instances are composed by sequential features *and* engineered features: the sequential input goes through a RNN module, and the output is combined with the engineered input through a (stack of) fully connected layer(s).
+* Using Inception Modules (CNNs)
+* Using Inception Modules and Recurrent modules
+
+## Data preprocessing
+
+The dataset contains the following features: 
+* 'obs_id', 'venue', 'order_id', 'action', 'side', 'price', 'bid', 'ask', 'bid_size', 'ask_size', 'trade', 'flux'
+  
+`order_id` are too many for one-hot encoding and most importantly it is preserved across observations.
+
+We extract two informations out of it:
+- order_seen_before
+- order_previous_count
+
+Since we want to create these features as well for the test set later on, we define a function that does it: `add_order_features`.
+
+num_attribs:
+   * 'price', 'bid', 'ask', 'bid_size', 'ask_size', 'flux', 'trade', 'order_seen_before', 'order_previous_count'
+cat_attribs:
+   * 'venue', 'action', 'side'
+
+**Note**: we normalize the numerical attributes only for the Inception Modules. Not normalizing gives a model that predicts as well as randomly (4%).
 
 ## RNNs
 ### Input
@@ -141,22 +163,22 @@ The output is combined with X_eng and passed to a nn.linear layer (input_size = 
 
 ## Improvements and variations
 
-## Deep GRU model
-Gru model with `n_layers=2`. 
-
-We reach accuracy of 61% in 60 epochs. This is the best model we found overall.
-
-## Deep GRU joint model
-Implementing deep GRU (2 layers) in the joint model.
-It performs better than the joint model, but not better than Deep gru on the sequential only inputs.
-
-## Input normalization
-Normalization of the sequential data (numerical only) doesn't give a better performance. 
+### Input normalization
+Normalization of the sequential data (numerical only) doesn't give a better performance for the RNN's models. It is necessary for CNNs modules. 
 
 We tried both to normalize all the numerical data, and only the bid_size, ask_size, flux.
 The latter gives better results, but not as good as without normalization.
 
-## Deep GRU joint with deep top layer
+### Deep GRU model
+Gru model with `n_layers=2`. 
+
+We reach accuracy of 61% in 60 epochs. This is the best model we found overall.
+
+### Deep GRU joint model
+Implementing deep GRU (2 layers) in the joint model.
+It performs better than the joint model, but not better than Deep gru on the sequential only inputs.
+
+### Deep GRU joint with deep top layer
 
 This is `DeepJoint2GRUModel` in *joint-model.ipynb*.
 
@@ -164,3 +186,27 @@ Instead of a single linear layer to combine the engineered features with the out
 we stack two linear layers (with ReLU).
 
 We reach only 27% accuracy in 50 epochs.
+
+### Inception Model
+
+This is `InceptionModel` in *cm2024.ipynb*.
+
+It consists of two inception modules followed by a two dense layers that do the classification.
+
+The inception modules consists of four **parallel** convolutional layers, of different kernel sizes and dimensions. Three of these are a pair of convolutional layers. The pair acts like a single powerful convolutional layer capable of capturing more complex patterns. The different kernel sizes allow them to capture patterns at different scales.
+
+Accuracy of 47% in 50 epochs. 
+
+### Inception Model 2
+
+This is `InceptionModel2` in *cm2024.ipynb*.
+
+It is the same as InceptionModel except that we
+* added a pooling layer between the inception and classification layers. Thus we reduce the 'tick' dimension from 25 (after the two inception modules) to 1. We lose **where** in the sequence the pattern occurred. Only retain something like "how strongly this feature occurred overall."
+* reduced the classification layer to a single layer (we do directly 128 -> output_dim instead of 128 -> 64 -> output dim).
+
+Accuracy of in epochs 
+
+### Inception Model with GRU
+
+Inception module stacked with GRU module (2 layers and hidden size = 64). The temporal dimension of the GRU layer is now 25 as opposed to 100 in the "GRU-only" models. 
