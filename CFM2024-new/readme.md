@@ -205,8 +205,22 @@ It is the same as InceptionModel except that we
 * added a pooling layer between the inception and classification layers. Thus we reduce the 'tick' dimension from 25 (after the two inception modules) to 1. We lose **where** in the sequence the pattern occurred. Only retain something like "how strongly this feature occurred overall."
 * reduced the classification layer to a single layer (we do directly 128 -> output_dim instead of 128 -> 64 -> output dim).
 
-Accuracy of in epochs 
+Accuracy of 65% in 120 epochs.
 
 ### Inception Model with GRU
 
 Inception module stacked with GRU module (2 layers and hidden size = 64). The temporal dimension of the GRU layer is now 25 as opposed to 100 in the "GRU-only" models. 
+
+Accuracy of 62% in 50 epochs. We reach 63% in 60 epochs and then it starts to overfit. 
+
+### Parallel Inception and GRU
+
+Since both the inception model and the 2-layer gru model reach good accuracy separately,
+instead of stacking them we train them parallel and then concatenate the outputs and make predictions
+with a fully connected layer. 
+
+This is the `ParallelInceptionGRUModel()`.
+
+We run out of running time to finish training.
+
+Accuracy of 40% after 10 epochs (better than both inception and gru separate, worst than them stacked). 
