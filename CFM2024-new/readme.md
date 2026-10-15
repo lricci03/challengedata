@@ -209,7 +209,8 @@ Accuracy of 65% in 120 epochs.
 
 ### Inception Model with GRU
 
-Inception module stacked with GRU module (2 layers and hidden size = 64). The temporal dimension of the GRU layer is now 25 as opposed to 100 in the "GRU-only" models. 
+Inception module stacked with GRU module (2 layers and hidden size = 64).
+After two inception modules the temporal dimension of the GRU layer is reduced to 25 as opposed to 100 in the "GRU-only" models. 
 
 Accuracy of 62% in 50 epochs. We reach 63% in 60 epochs and then it starts to overfit. 
 
@@ -224,3 +225,12 @@ This is the `ParallelInceptionGRUModel()`.
 We run out of running time to finish training.
 
 Accuracy of 40% after 10 epochs (better than both inception and gru separate, worst than them stacked). 
+
+## Final model and Submission
+We choose as final model the Inception Model with GRU. 
+The final training and submission are in the file `create_submission.ipynb`.
+
+* Upload training data and preprocess. Numerical features are scaled because we are using inception modules.
+* Training on the full training set for 60 epochs.
+* Test set is preprocessed and scaled with the mean and std dev of the full training set.
+* The submission is the file `submission_4.csv`. We reach **accuracy of 41\%**.
